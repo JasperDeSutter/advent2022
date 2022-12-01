@@ -14,12 +14,14 @@ fn solve(_: std.mem.Allocator, input: []const u8) anyerror!void {
 }
 
 fn mostTotalCalories(input: []const u8) !u32 {
-    const buf = try mostTotalCaloriesTop(comptime 1, input);
+    var buf = [1]u32{0};
+    try mostTotalCaloriesTop(&buf, input);
     return buf[0];
 }
 
 fn topThreeCaloriesTotal(input: []const u8) !u32 {
-    const buf = try mostTotalCaloriesTop(comptime 3, input);
+    var buf = [1]u32{0} ** 3;
+    try mostTotalCaloriesTop(&buf, input);
 
     var total: u32 = 0;
     for (buf) |n| total += n;
@@ -31,10 +33,13 @@ fn lineEmpty(line: ?[]const u8) bool {
     return l.len == 0;
 }
 
-fn mostTotalCaloriesTop(comptime N: usize, input: []const u8) ![N]u32 {
-    var iter = std.mem.split(u8, input, "\n");
+fn push_front_slice(slice: []u32, n: u32) void {
+    std.mem.copyBackwards(u32, slice[1..], slice[0..(slice.len - 1)]);
+    slice[0] = n;
+}
 
-    var buf = [_]u32{0} ** (N + 1);
+fn mostTotalCaloriesTop(buf: []u32, input: []const u8) !void {
+    var iter = std.mem.split(u8, input, "\n");
     var current: u32 = 0;
 
     while (true) {
@@ -44,16 +49,16 @@ fn mostTotalCaloriesTop(comptime N: usize, input: []const u8) ![N]u32 {
             current += amount;
             continue;
         }
-        buf[N] = current;
-        std.sort.sort(u32, &buf, {}, comptime std.sort.desc(u32));
+
+        for (buf) |n, i| {
+            if (n > current) continue;
+            push_front_slice(buf[i..], current);
+            break;
+        }
 
         if (line == null) break;
         current = 0;
     }
-
-    var result: [N]u32 = undefined;
-    std.mem.copy(u32, &result, buf[0..N]);
-    return result;
 }
 
 test {
