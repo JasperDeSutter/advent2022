@@ -6,16 +6,34 @@ pub fn main() anyerror!void {
 }
 
 fn solve(_: std.mem.Allocator, input: []const u8) anyerror!void {
-    const score = calculateScore(input);
-    std.debug.print("score: {any}\n", .{score});
+    const score1 = calculateScore(input, chooseMove1);
+    std.debug.print("score 1: {any}\n", .{score1});
+
+    const score2 = calculateScore(input, chooseMove2);
+    std.debug.print("score 2: {any}\n", .{score2});
 }
 
-fn calculateScore(input: []const u8) u32 {
+fn chooseMove1(other: u8, hint: u8) u8 {
+    _ = other;
+    return hint;
+}
+
+fn chooseMove2(other: u8, hint: u8) u8 {
+    if (hint == 0) {
+        const wrapped = other -% 1;
+        if (wrapped > 2) return wrapped - 253;
+        return wrapped;
+    }
+    if (hint == 2) return (other +% 1) % 3;
+    return other;
+}
+
+fn calculateScore(input: []const u8, chooseMove: anytype) u32 {
     var lines = std.mem.split(u8, input, "\n");
     var score: u32 = 0;
     while (lines.next()) |line| {
         const opponent = line[0] - 'A';
-        const me = line[2] - 'X';
+        const me = chooseMove(opponent, line[2] - 'X');
 
         const result = opponent -% me;
         const roundScore: u32 = switch (result) {
@@ -37,5 +55,6 @@ test {
         \\C Z
     ;
 
-    try std.testing.expectEqual(calculateScore(input), 15);
+    try std.testing.expectEqual(calculateScore(input, chooseMove1), 15);
+    try std.testing.expectEqual(calculateScore(input, chooseMove2), 12);
 }
