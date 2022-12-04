@@ -11,7 +11,7 @@ fn solve(_: std.mem.Allocator, input: []const u8) anyerror!void {
 }
 
 fn priority(char: u8) u32 {
-    if (char >= 'a' and char <= 'z') {
+    if (char >= 'a') {
         return (char - 'a') + 1;
     } else {
         return (char - 'A') + 27;
