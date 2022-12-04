@@ -6,19 +6,26 @@ pub fn main() anyerror!void {
 }
 
 fn solve(_: std.mem.Allocator, input: []const u8) anyerror!void {
-    std.debug.print("fully overlapping assignment count: {any}\n", .{try fullyOverlappingAssignmentCount(input)});
+    const result = try fullyOverlappingAssignmentCount(input);
+    std.debug.print("fully overlapping assignment count: {any}\n", .{result.fullyOverlapping});
+    std.debug.print("partially overlapping assignment count: {any}\n", .{result.partiallyOverlapping});
 }
 
 const Error = error{ParsingError};
+
+const Result = struct {
+    fullyOverlapping: u32,
+    partiallyOverlapping: u32,
+};
 
 fn parseNextPart(it: *std.mem.TokenIterator(u8)) Error!u32 {
     const slice = it.next() orelse return Error.ParsingError;
     return std.fmt.parseInt(u32, slice, 10) catch return Error.ParsingError;
 }
 
-fn fullyOverlappingAssignmentCount(input: []const u8) Error!u32 {
+fn fullyOverlappingAssignmentCount(input: []const u8) Error!Result {
     var lines = std.mem.split(u8, input, "\n");
-    var total: u32 = 0;
+    var result = Result{ .fullyOverlapping = 0, .partiallyOverlapping = 0 };
 
     while (lines.next()) |line| {
         var parts = std.mem.tokenize(u8, line, "-,");
@@ -28,13 +35,19 @@ fn fullyOverlappingAssignmentCount(input: []const u8) Error!u32 {
         const to2 = try parseNextPart(&parts);
 
         if (from1 >= from2 and to1 <= to2) {
-            total += 1;
+            result.fullyOverlapping += 1;
+            result.partiallyOverlapping += 1;
         } else if (from1 <= from2 and to1 >= to2) {
-            total += 1;
+            result.fullyOverlapping += 1;
+            result.partiallyOverlapping += 1;
+        } else if (from1 >= from2 and from1 <= to2) {
+            result.partiallyOverlapping += 1;
+        } else if (from2 >= from1 and from2 <= to1) {
+            result.partiallyOverlapping += 1;
         }
     }
 
-    return total;
+    return result;
 }
 
 test {
@@ -47,5 +60,7 @@ test {
         \\2-6,4-8
     ;
 
-    try std.testing.expectEqual(try fullyOverlappingAssignmentCount(input), 2);
+    const result = try fullyOverlappingAssignmentCount(input);
+    try std.testing.expectEqual(result.fullyOverlapping, 2);
+    try std.testing.expectEqual(result.partiallyOverlapping, 4);
 }
