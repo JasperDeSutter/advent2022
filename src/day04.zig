@@ -29,20 +29,16 @@ fn fullyOverlappingAssignmentCount(input: []const u8) Error!Result {
 
     while (lines.next()) |line| {
         var parts = std.mem.tokenize(u8, line, "-,");
+        
         const from1 = try parseNextPart(&parts);
         const to1 = try parseNextPart(&parts);
         const from2 = try parseNextPart(&parts);
         const to2 = try parseNextPart(&parts);
 
-        if (from1 >= from2 and to1 <= to2) {
+        if (from1 >= from2 and to1 <= to2 or from1 <= from2 and to1 >= to2) {
             result.fullyOverlapping += 1;
-            result.partiallyOverlapping += 1;
-        } else if (from1 <= from2 and to1 >= to2) {
-            result.fullyOverlapping += 1;
-            result.partiallyOverlapping += 1;
-        } else if (from1 >= from2 and from1 <= to2) {
-            result.partiallyOverlapping += 1;
-        } else if (from2 >= from1 and from2 <= to1) {
+        }
+        if (!(to1 < from2 or to2 < from1)) {
             result.partiallyOverlapping += 1;
         }
     }
