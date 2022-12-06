@@ -14,46 +14,27 @@ fn solve(alloc: std.mem.Allocator, input: []const u8) anyerror!void {
 }
 
 const Dir = struct {
-    entries: std.ArrayList(Item),
+    entries: std.ArrayList(Dir),
+    totalSize: u32 = 0,
     fn init(alloc: std.mem.Allocator) @This() {
         return .{
-            .entries = std.ArrayList(Item).init(alloc),
+            .entries = std.ArrayList(Dir).init(alloc),
         };
     }
 
     fn deinit(self: @This()) void {
         for (self.entries.items) |item| {
-            switch (item) {
-                .dir => |dir| dir.deinit(),
-                else => {},
-            }
+            item.deinit();
         }
         self.entries.deinit();
     }
 
     fn print(self: *const @This()) void {
-        std.debug.print("dir\n", .{});
+        std.debug.print("dir: {any}\n", .{self.totalSize});
         for (self.entries.items) |item| {
-            switch (item) {
-                .dir => |dir| dir.print(),
-                .file => |file| std.debug.print("file: {any}\n", .{file.size}),
-            }
+            item.print();
         }
     }
-};
-
-const File = struct {
-    size: u32,
-};
-
-const ItemType = enum {
-    dir,
-    file,
-};
-
-const Item = union(ItemType) {
-    dir: Dir,
-    file: File,
 };
 
 fn parseDirTree(alloc: std.mem.Allocator, input: []const u8) !Dir {
@@ -73,12 +54,13 @@ fn parseDirTree(alloc: std.mem.Allocator, input: []const u8) !Dir {
             if (std.mem.startsWith(u8, cmd, "cd")) {
                 const to = cmd[3..];
                 if (std.mem.eql(u8, to, "..")) {
-                    _ = stack.pop();
+                    const dir = stack.pop();
+                    stack.items[stack.items.len - 1].*.totalSize += dir.totalSize;
                 } else {
                     var cd = stack.items[stack.items.len - 1];
                     var item = try cd.entries.addOne();
-                    item.* = Item{ .dir = Dir.init(alloc) };
-                    try stack.append(&item.dir);
+                    item.* = Dir.init(alloc);
+                    try stack.append(item);
                 }
             } else @panic("unknown command!");
         } else {
@@ -87,59 +69,38 @@ fn parseDirTree(alloc: std.mem.Allocator, input: []const u8) !Dir {
                 var parts = std.mem.split(u8, line, " ");
                 const sizePart = parts.next().?;
                 const size = try std.fmt.parseInt(u32, sizePart, 10);
-                try cd.entries.append(Item{ .file = File{ .size = size } });
+                cd.totalSize += size;
             }
         }
+    }
+
+    var i: usize = stack.items.len - 1;
+    while (i > 0) : (i -= 1) {
+        stack.items[i - 1].totalSize += stack.items[i].totalSize;
     }
 
     return root;
 }
 
-fn inner(dir: *const Dir, result: *u32) u32 {
-    var total: u32 = 0;
-    for (dir.entries.items) |item| {
-        total += switch (item) {
-            .file => |file| file.size,
-            .dir => |child| inner(&child, result),
-        };
-    }
-
-    if (total <= 100_000) result.* += total;
-
-    return total;
-}
-
 fn sumOfSmallDirectories(dirTree: *const Dir) u32 {
     var result: u32 = 0;
-    for (dirTree.entries.items) |item| {
-        _ = switch (item) {
-            .dir => |dir| inner(&dir, &result),
-            .file => {},
-        };
+    for (dirTree.entries.items) |dir| {
+        if (dir.totalSize < 100_000) result += dir.totalSize;
+        result += sumOfSmallDirectories(&dir);
     }
     return result;
 }
 
 fn smallestDirectoryToDeleteInner(dir: *const Dir, size: u32) u32 {
-    var total: u32 = 0;
-    for (dir.entries.items) |item| {
-        switch (item) {
-            .file => |file| total += file.size,
-            .dir => |child| {
-                const childSize = smallestDirectoryToDeleteInner(&child, size);
-                if (childSize >= size) return childSize;
-                total += childSize;
-            },
-        }
+    for (dir.entries.items) |child| {
+        if (child.totalSize < size) continue;
+        return smallestDirectoryToDeleteInner(&child, size);
     }
-
-    return total;
+    return dir.totalSize;
 }
 
 fn smallestDirectoryToDelete(dirTree: *const Dir) u32 {
-    var unused: u32 = 0;
-    const size = inner(dirTree, &unused);
-    const free = 70000000 - size;
+    const free = 70000000 - dirTree.totalSize;
     return smallestDirectoryToDeleteInner(dirTree, 30000000 - free);
 }
 
