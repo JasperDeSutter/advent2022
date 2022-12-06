@@ -37,15 +37,8 @@ const Dir = struct {
     }
 };
 
-fn parseDirTree(alloc: std.mem.Allocator, input: []const u8) !Dir {
-    var lines = std.mem.split(u8, input, "\n");
-
-    var stack = std.ArrayList(*Dir).init(alloc);
-    defer stack.deinit();
-
-    _ = lines.next(); // $ cd /
-    var root = Dir.init(alloc);
-    try stack.append(&root);
+fn parseDir(alloc: std.mem.Allocator, lines: *std.mem.SplitIterator(u8)) !Dir {
+    var dir = Dir.init(alloc);
 
     while (lines.next()) |line| {
         if (line[0] == '$') {
@@ -54,32 +47,30 @@ fn parseDirTree(alloc: std.mem.Allocator, input: []const u8) !Dir {
             if (std.mem.startsWith(u8, cmd, "cd")) {
                 const to = cmd[3..];
                 if (std.mem.eql(u8, to, "..")) {
-                    const dir = stack.pop();
-                    stack.items[stack.items.len - 1].*.totalSize += dir.totalSize;
+                    return dir;
                 } else {
-                    var cd = stack.items[stack.items.len - 1];
-                    var item = try cd.entries.addOne();
-                    item.* = Dir.init(alloc);
-                    try stack.append(item);
+                    const child = try parseDir(alloc, lines);
+                    dir.totalSize += child.totalSize;
+                    try dir.entries.append(child);
                 }
             } else @panic("unknown command!");
         } else {
             if (!std.mem.startsWith(u8, line, "dir")) {
-                var cd = stack.items[stack.items.len - 1];
                 var parts = std.mem.split(u8, line, " ");
                 const sizePart = parts.next().?;
                 const size = try std.fmt.parseInt(u32, sizePart, 10);
-                cd.totalSize += size;
+                dir.totalSize += size;
             }
         }
     }
+    return dir;
+}
 
-    var i: usize = stack.items.len - 1;
-    while (i > 0) : (i -= 1) {
-        stack.items[i - 1].totalSize += stack.items[i].totalSize;
-    }
+fn parseDirTree(alloc: std.mem.Allocator, input: []const u8) !Dir {
+    var lines = std.mem.split(u8, input, "\n");
 
-    return root;
+    _ = lines.next(); // $ cd /
+    return try parseDir(alloc, &lines);
 }
 
 fn sumOfSmallDirectories(dirTree: *const Dir) u32 {
