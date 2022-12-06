@@ -12,27 +12,6 @@ fn solve(alloc: std.mem.Allocator, input: []const u8) anyerror!void {
     std.debug.print("firstStartOfMessageMarker: {any}\n", .{firstStartOfMessageMarker(input)});
 }
 
-fn RingBuffer(comptime T: type, comptime size: u8) type {
-    return struct {
-        i: u8 = 0,
-        buf: [size]T = [1]T{0} ** size,
-
-        fn setNext(self: *@This(), value: T) void {
-            self.buf[self.i] = value;
-            self.i = (self.i + 1) % size;
-        }
-
-        fn allDifferent(self: *const @This()) bool {
-            for (self.buf[1..]) |v, i| {
-                for (self.buf[0..(i + 1)]) |v2| {
-                    if (v2 == v) return false;
-                }
-            }
-            return true;
-        }
-    };
-}
-
 fn firstStartOfPacketMarker(datastream: []const u8) usize {
     return impl(datastream, 4);
 }
@@ -41,12 +20,18 @@ fn firstStartOfMessageMarker(datastream: []const u8) usize {
     return impl(datastream, 14);
 }
 
-fn impl(datastream: []const u8, comptime size: u8) usize {
-    var ringBuffer = RingBuffer(u8, size){};
-    for (datastream) |c, i| {
-        ringBuffer.setNext(c);
-        if (i > (size - 2) and ringBuffer.allDifferent()) {
-            return i + 1;
+fn impl(datastream: []const u8, size: u8) usize {
+    var slice: []const u8 = datastream[0..1];
+    for (datastream[1..]) |c, end| {
+        for (slice) |c2, i| {
+            if (c2 == c) {
+                slice = slice[(i + 1)..];
+                break;
+            }
+        }
+        slice.len += 1;
+        if (slice.len == size) {
+            return end + 2;
         }
     }
     return 0;
