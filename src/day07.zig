@@ -10,6 +10,7 @@ fn solve(alloc: std.mem.Allocator, input: []const u8) anyerror!void {
     defer dirTree.deinit();
 
     std.debug.print("sumOfSmallDirectories: {any}\n", .{sumOfSmallDirectories(&dirTree)});
+    std.debug.print("smallestDirectoryToDelete: {any}\n", .{smallestDirectoryToDelete(&dirTree)});
 }
 
 const Dir = struct {
@@ -119,6 +120,29 @@ fn sumOfSmallDirectories(dirTree: *const Dir) u32 {
     return result;
 }
 
+fn smallestDirectoryToDeleteInner(dir: *const Dir, size: u32) u32 {
+    var total: u32 = 0;
+    for (dir.entries.items) |item| {
+        switch (item) {
+            .file => |file| total += file.size,
+            .dir => |child| {
+                const childSize = smallestDirectoryToDeleteInner(&child, size);
+                if (childSize >= size) return childSize;
+                total += childSize;
+            },
+        }
+    }
+
+    return total;
+}
+
+fn smallestDirectoryToDelete(dirTree: *const Dir) u32 {
+    var unused: u32 = 0;
+    const size = inner(dirTree, &unused);
+    const free = 70000000 - size;
+    return smallestDirectoryToDeleteInner(dirTree, 30000000 - free);
+}
+
 test {
     const input =
         \\$ cd /
@@ -150,4 +174,5 @@ test {
     defer dirTree.deinit();
 
     try std.testing.expectEqual(sumOfSmallDirectories(&dirTree), 95437);
+    try std.testing.expectEqual(smallestDirectoryToDelete(&dirTree), 24933642);
 }
