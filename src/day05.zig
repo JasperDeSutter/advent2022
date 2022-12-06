@@ -6,14 +6,18 @@ pub fn main() anyerror!void {
 }
 
 fn solve(alloc: std.mem.Allocator, input: []const u8) anyerror!void {
-    var stackResult = try stackCrates(alloc, input);
+    var stackResult = try stackCrates(alloc, input, false);
     defer stackResult.deinit();
     std.debug.print("stackResult: {s}\n", .{stackResult.items});
+
+    var orderedStackResult = try stackCrates(alloc, input, true);
+    defer orderedStackResult.deinit();
+    std.debug.print("orderedStackResult: {s}\n", .{orderedStackResult.items});
 }
 
 const Stack = std.ArrayList(u8);
 
-fn stackCrates(alloc: std.mem.Allocator, input: []const u8) anyerror!std.ArrayList(u8) {
+fn stackCrates(alloc: std.mem.Allocator, input: []const u8, inOrder: bool) anyerror!std.ArrayList(u8) {
     var lines = std.mem.split(u8, input, "\n");
 
     var stacks = std.ArrayList(Stack).init(alloc);
@@ -52,18 +56,20 @@ fn stackCrates(alloc: std.mem.Allocator, input: []const u8) anyerror!std.ArrayLi
     while (lines.next()) |l| {
         var parts = std.mem.split(u8, l, " ");
         _ = parts.next();
-        var count = try std.fmt.parseInt(u8, parts.next().?, 10);
+        var count = try std.fmt.parseInt(u32, parts.next().?, 10);
         _ = parts.next();
-        const from = try std.fmt.parseInt(u8, parts.next().?, 10);
+        const from = try std.fmt.parseInt(u32, parts.next().?, 10);
         _ = parts.next();
-        const to = try std.fmt.parseInt(u8, parts.next().?, 10);
+        const to = try std.fmt.parseInt(u32, parts.next().?, 10);
 
-        var fromStack = &stacks.items[from - 1];
-        var toStack = &stacks.items[to - 1];
+        var fromStack: *Stack = &stacks.items[from - 1];
+        var toStack: *Stack = &stacks.items[to - 1];
 
-        while (count > 0) : (count -= 1) {
-            var ptr = try toStack.addOne();
-            ptr.* = fromStack.pop();
+        {
+            const slice = fromStack.items[fromStack.items.len - count ..];
+            if (!inOrder) std.mem.reverse(u8, slice);
+            try toStack.appendSlice(slice);
+            fromStack.items.len -= count;
         }
     }
 
@@ -91,7 +97,11 @@ test {
         \\move 1 from 1 to 2
     ;
 
-    const result = try stackCrates(std.testing.allocator, input);
-    defer result.deinit();
-    try std.testing.expectEqualStrings("CMZ", result.items);
+    const result1 = try stackCrates(std.testing.allocator, input, false);
+    defer result1.deinit();
+    try std.testing.expectEqualStrings("CMZ", result1.items);
+
+    const result2 = try stackCrates(std.testing.allocator, input, true);
+    defer result2.deinit();
+    try std.testing.expectEqualStrings("MCD", result2.items);
 }
