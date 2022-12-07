@@ -6,39 +6,15 @@ pub fn main() anyerror!void {
 }
 
 fn solve(alloc: std.mem.Allocator, input: []const u8) anyerror!void {
-    const dirTree = try parseDirTree(alloc, input);
+    const dirTree = try parseSortedDirSizes(alloc, input);
     defer dirTree.deinit();
 
-    std.debug.print("sumOfSmallDirectories: {any}\n", .{sumOfSmallDirectories(&dirTree)});
-    std.debug.print("smallestDirectoryToDelete: {any}\n", .{smallestDirectoryToDelete(&dirTree)});
+    std.debug.print("sumOfSmallDirectories: {any}\n", .{sumOfSmallDirectories(dirTree.items)});
+    std.debug.print("smallestDirectoryToDelete: {any}\n", .{smallestDirectoryToDelete(dirTree.items)});
 }
 
-const Dir = struct {
-    entries: std.ArrayList(Dir),
-    totalSize: u32 = 0,
-    fn init(alloc: std.mem.Allocator) @This() {
-        return .{
-            .entries = std.ArrayList(Dir).init(alloc),
-        };
-    }
-
-    fn deinit(self: @This()) void {
-        for (self.entries.items) |item| {
-            item.deinit();
-        }
-        self.entries.deinit();
-    }
-
-    fn print(self: *const @This()) void {
-        std.debug.print("dir: {any}\n", .{self.totalSize});
-        for (self.entries.items) |item| {
-            item.print();
-        }
-    }
-};
-
-fn parseDir(alloc: std.mem.Allocator, lines: *std.mem.SplitIterator(u8)) !Dir {
-    var dir = Dir.init(alloc);
+fn parseDirSize(lines: *std.mem.SplitIterator(u8), sizes: *std.ArrayList(u32)) !u32 {
+    var totalSize: u32 = 0;
 
     while (lines.next()) |line| {
         if (line[0] == '$') {
@@ -47,11 +23,11 @@ fn parseDir(alloc: std.mem.Allocator, lines: *std.mem.SplitIterator(u8)) !Dir {
             if (std.mem.startsWith(u8, cmd, "cd")) {
                 const to = cmd[3..];
                 if (std.mem.eql(u8, to, "..")) {
-                    return dir;
+                    return totalSize;
                 } else {
-                    const child = try parseDir(alloc, lines);
-                    dir.totalSize += child.totalSize;
-                    try dir.entries.append(child);
+                    const child = try parseDirSize(lines, sizes);
+                    totalSize += child;
+                    try sizes.append(child);
                 }
             } else @panic("unknown command!");
         } else {
@@ -59,40 +35,52 @@ fn parseDir(alloc: std.mem.Allocator, lines: *std.mem.SplitIterator(u8)) !Dir {
                 var parts = std.mem.split(u8, line, " ");
                 const sizePart = parts.next().?;
                 const size = try std.fmt.parseInt(u32, sizePart, 10);
-                dir.totalSize += size;
+                totalSize += size;
             }
         }
     }
-    return dir;
+    return totalSize;
 }
 
-fn parseDirTree(alloc: std.mem.Allocator, input: []const u8) !Dir {
+fn parseSortedDirSizes(alloc: std.mem.Allocator, input: []const u8) !std.ArrayList(u32) {
     var lines = std.mem.split(u8, input, "\n");
+    var sizes = std.ArrayList(u32).init(alloc);
 
-    _ = lines.next(); // $ cd /
-    return try parseDir(alloc, &lines);
+    _ = try parseDirSize(&lines, &sizes);
+    std.sort.sort(u32, sizes.items, {}, std.sort.desc(u32));
+    return sizes;
 }
 
-fn sumOfSmallDirectories(dirTree: *const Dir) u32 {
+fn findLastGreaterThan(key: u32, items: []const u32) usize {
+    var left: usize = 0;
+    var right: usize = items.len;
+
+    while (left < right) {
+        const mid = left + (right - left) / 2;
+        if (items[mid] > key) {
+            left = mid + 1;
+        } else {
+            right = mid;
+        }
+    }
+
+    return right;
+}
+
+fn sumOfSmallDirectories(dirSizes: []const u32) !u32 {
+    const i = findLastGreaterThan(100_000, dirSizes);
+
     var result: u32 = 0;
-    for (dirTree.entries.items) |dir| {
-        if (dir.totalSize < 100_000) result += dir.totalSize;
-        result += sumOfSmallDirectories(&dir);
+    for (dirSizes[i..]) |dir| {
+        result += dir;
     }
     return result;
 }
 
-fn smallestDirectoryToDeleteInner(dir: *const Dir, size: u32) u32 {
-    for (dir.entries.items) |child| {
-        if (child.totalSize < size) continue;
-        return smallestDirectoryToDeleteInner(&child, size);
-    }
-    return dir.totalSize;
-}
-
-fn smallestDirectoryToDelete(dirTree: *const Dir) u32 {
-    const free = 70000000 - dirTree.totalSize;
-    return smallestDirectoryToDeleteInner(dirTree, 30000000 - free);
+fn smallestDirectoryToDelete(dirSizes: []const u32) u32 {
+    const free = 70000000 - dirSizes[0];
+    const i = findLastGreaterThan(30000000 - free, dirSizes);
+    return dirSizes[i - 1];
 }
 
 test {
@@ -122,9 +110,9 @@ test {
         \\7214296 k
     ;
 
-    const dirTree = try parseDirTree(std.testing.allocator, input);
+    const dirTree = try parseSortedDirSizes(std.testing.allocator, input);
     defer dirTree.deinit();
 
-    try std.testing.expectEqual(sumOfSmallDirectories(&dirTree), 95437);
-    try std.testing.expectEqual(smallestDirectoryToDelete(&dirTree), 24933642);
+    try std.testing.expectEqual(sumOfSmallDirectories(dirTree.items), 95437);
+    try std.testing.expectEqual(smallestDirectoryToDelete(dirTree.items), 24933642);
 }
