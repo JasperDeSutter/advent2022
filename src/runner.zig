@@ -16,11 +16,14 @@ pub fn run(
     _ = args_iter.skip();
     const input_path = args_iter.next().?;
 
-    const file = try std.fs.openFileAbsolute(input_path, .{ });
+    const file = try std.fs.openFileAbsolute(input_path, .{});
     defer file.close();
 
     const input = try file.readToEndAlloc(alloc, 10_000_000);
     defer alloc.free(input);
 
+    const start = std.time.nanoTimestamp();
     try solve(alloc, input);
+    const end = std.time.nanoTimestamp();
+    std.debug.print("duration: {d}us\n", .{@divTrunc(end - start, 1000)});
 }

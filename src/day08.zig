@@ -12,105 +12,78 @@ fn solve(alloc: std.mem.Allocator, input: []const u8) anyerror!void {
 }
 
 const Result = struct {
-    visibleTreeCount: u32,
+    visibleTreeCount: usize,
     highestScenicScore: u32,
 };
 
 const State = struct {
     width: usize,
     height: usize,
-    markers: []bool,
+    markers: std.DynamicBitSetUnmanaged,
     alloc: std.mem.Allocator,
 
     highest: u8 = 0,
-    history: std.ArrayListUnmanaged(u8),
-    direction: u8 = 0,
-    scenicScores: std.ArrayListUnmanaged(std.ArrayListUnmanaged(u8)),
+    historyIndex: usize,
+    history: []u8,
+    scenicScores: []u32,
 
     fn init(allocator: std.mem.Allocator, widthArg: usize, heightArg: usize) !@This() {
         const count = heightArg * widthArg;
-        const markers = try allocator.alloc(bool, count);
-
-        var scores = try std.ArrayListUnmanaged(std.ArrayListUnmanaged(u8)).initCapacity(allocator, 4);
-        var dir: u8 = 0;
-        while (dir < 4) : (dir += 1) {
-            var board = try std.ArrayListUnmanaged(u8).initCapacity(allocator, count);
-            board.appendNTimesAssumeCapacity(0, count);
-            scores.appendAssumeCapacity(board);
-        }
-
+        const markers = try std.DynamicBitSetUnmanaged.initEmpty(allocator, count); // try allocator.alloc(bool, count);
+        const scores = try allocator.alloc(u32, count);
+        std.mem.set(u32, scores, 1);
         const historySize = std.math.max(widthArg, heightArg);
+        var history = try allocator.alloc(u8, historySize);
+
         return .{
             .markers = markers,
             .width = widthArg,
             .height = heightArg,
             .alloc = allocator,
-            .history = try std.ArrayListUnmanaged(u8).initCapacity(allocator, historySize),
+            .history = history,
             .scenicScores = scores,
+            .historyIndex = history.len,
         };
     }
 
     fn deinit(self: *@This()) void {
-        self.alloc.free(self.markers);
-        self.history.deinit(self.alloc);
-        var i: usize = 0;
-        while (i < self.scenicScores.items.len) : (i += 1) {
-            var scores = &self.scenicScores.items[i];
-            scores.deinit(self.alloc);
-        }
-        self.scenicScores.deinit(self.alloc);
+        self.markers.deinit(self.alloc);
+        self.alloc.free(self.history);
+        self.alloc.free(self.scenicScores);
     }
 
     fn checkTree(self: *@This(), tree: u8, x: usize, y: usize) void {
+        const pos = y * self.width + x;
         if (tree > self.highest) {
-            self.markers[y * self.width + x] = true;
+            self.markers.set(pos);
             self.highest = tree;
         }
 
-        const historyLen = self.history.items.len;
-        if (historyLen > 0) {
-            var i = historyLen - 1;
-            while (i > 0) : (i -= 1) {
-                var h = self.history.items[i];
-                if (h >= tree) {
-                    const score = @intCast(u8, historyLen - i);
-                    self.scenicScores.items[self.direction].items[y * self.height + x] = score;
-                    break;
-                }
-            }
-            if (i == 0) {
-                self.scenicScores.items[self.direction].items[y * self.height + x] = @intCast(u8, historyLen);
+        var range: u32 = 0;
+        for (self.history[self.historyIndex..]) |h, i| {
+            if (h >= tree) {
+                range = @intCast(u32, i + 1);
+                break;
             }
         }
+        if (range == 0) range = @intCast(u32, self.history.len - self.historyIndex);
 
-        self.history.appendAssumeCapacity(tree);
+        self.scenicScores[pos] *= range;
+        self.historyIndex -%= 1;
+        self.history[self.historyIndex] = tree;
     }
 
-    fn resetDirection(self: *@This(), direction: u8) void {
+    fn resetDirection(self: *@This()) void {
         self.highest = 0;
-        self.history.items.len = 0;
-        self.direction = direction;
+        self.historyIndex = self.history.len;
     }
 
     fn result(self: *const @This()) Result {
-        var totalVisible: u32 = 0;
-        for (self.markers) |marker| {
-            if (marker) totalVisible += 1;
-        }
+        var totalVisible = self.markers.count();
 
         var highestScore: u32 = 0;
-
-        var y: usize = 0;
-        while (y < self.height) : (y += 1) {
-            var x: usize = 0;
-            while (x < self.width) : (x += 1) {
-                var dir: usize = 0;
-                var score: u32 = 1;
-                while (dir < 4) : (dir += 1) {
-                    score *= self.scenicScores.items[dir].items[y * self.height + x];
-                }
-                if (score > highestScore) highestScore = score;
-            }
+        for (self.scenicScores) |score| {
+            if (score > highestScore) highestScore = score;
         }
 
         return Result{
@@ -121,50 +94,44 @@ const State = struct {
 };
 
 fn treeCheck(alloc: std.mem.Allocator, input: []const u8) !Result {
-    var rows = std.ArrayList([]const u8).init(alloc);
-    defer rows.deinit();
-    {
-        var lines = std.mem.split(u8, input, "\n");
-        while (lines.next()) |line| try rows.append(line);
-    }
-
-    const width = rows.items[0].len;
-    const height = rows.items.len;
+    var width: usize = 0;
+    while (input[width] != '\n') : (width += 1) {}
+    const stride = width + 1;
+    const height = input.len / width;
 
     var state = try State.init(alloc, width, height);
     defer state.deinit();
 
-    for (rows.items) |row, y| {
-        state.resetDirection(0);
-        var x: usize = 0;
-        while (x < width) : (x += 1) {
-            const tree = rows.items[y][x];
-            state.checkTree(tree, x, y);
-        }
+    {
+        var y: usize = 0;
+        while (y < height) : (y += 1) {
+            state.resetDirection();
+            var x: usize = 0;
+            while (x < width) : (x += 1) {
+                state.checkTree(input[y * stride + x], x, y);
+            }
 
-        state.resetDirection(1);
-        x = row.len - 1;
-        while (x > 0) : (x -= 1) {
-            const tree = row[x];
-            state.checkTree(tree, x, y);
+            state.resetDirection();
+            x = width - 1;
+            while (x < width) : (x -%= 1) {
+                state.checkTree(input[y * stride + x], x, y);
+            }
         }
     }
 
     {
         var x: usize = 0;
-        while (x < width) : (x += 1) {
-            state.resetDirection(2);
+        while (x < (width - 1)) : (x += 1) {
+            state.resetDirection();
             var y: usize = 0;
             while (y < height) : (y += 1) {
-                const tree = rows.items[y][x];
-                state.checkTree(tree, x, y);
+                state.checkTree(input[y * stride + x], x, y);
             }
 
-            state.resetDirection(3);
+            state.resetDirection();
             y = height - 1;
-            while (y > 0) : (y -= 1) {
-                const tree = rows.items[y][x];
-                state.checkTree(tree, x, y);
+            while (y < height) : (y -%= 1) {
+                state.checkTree(input[y * stride + x], x, y);
             }
         }
     }

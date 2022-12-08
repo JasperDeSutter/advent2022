@@ -19,6 +19,7 @@ pub fn build(b: *std.build.Builder) !void {
         const exe = b.addExecutable(dayString, srcFile);
         exe.setTarget(target);
         exe.setBuildMode(mode);
+        exe.single_threaded = true;
         exe.install();
 
         const run_cmd = exe.run();
@@ -30,6 +31,7 @@ pub fn build(b: *std.build.Builder) !void {
         const test_cmd = b.addTest(srcFile);
         test_cmd.setTarget(target);
         test_cmd.setBuildMode(mode);
+        test_cmd.single_threaded = true;
         test_all_step.dependOn(&test_cmd.step);
 
         const run_step = b.step(dayString, b.fmt("Run {s}", .{dayString}));
