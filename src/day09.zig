@@ -9,6 +9,7 @@ fn solve(alloc: std.mem.Allocator, input: []const u8) anyerror!void {
 }
 
 const boardSize: usize = 500;
+const Pos = @Vector(2, i16);
 
 fn simulateRope(alloc: std.mem.Allocator, input: []const u8, knots: u8) !usize {
     var lines = std.mem.split(u8, input, "\n");
@@ -16,9 +17,9 @@ fn simulateRope(alloc: std.mem.Allocator, input: []const u8, knots: u8) !usize {
     var visited = try std.DynamicBitSetUnmanaged.initEmpty(alloc, boardSize * boardSize);
     defer visited.deinit(alloc);
 
-    var positions = try alloc.alloc([2]i16, knots);
+    var positions = try alloc.alloc(Pos, knots);
     defer alloc.free(positions);
-    std.mem.set([2]i16, positions, .{ 0, 0 });
+    std.mem.set(Pos, positions, .{ 0, 0 });
 
     const mid = boardSize / 2;
     visited.set(mid * mid);
@@ -29,26 +30,22 @@ fn simulateRope(alloc: std.mem.Allocator, input: []const u8, knots: u8) !usize {
 
         while (dist > 0) : (dist -= 1) {
             var head = &positions[0];
-            switch (dir) {
-                'R' => head[0] += 1,
-                'L' => head[0] -= 1,
-                'U' => head[1] -= 1,
-                else => head[1] += 1,
-            }
+            head.* += switch (dir) {
+                'R' => .{ 1, 0 },
+                'L' => .{ -1, 0 },
+                'U' => .{ 0, -1 },
+                else => .{ 0, 1 },
+            };
 
             var i: usize = 1;
             var h = head.*;
             while (i < positions.len) : (i += 1) {
                 var tail = &positions[i];
-                var x = h[0] - tail[0];
-                var y = h[1] - tail[1];
+                var off = h - tail.*;
 
-                if (x < 2 and x > -2 and y < 2 and y > -2) break;
-                x = std.math.sign(x);
-                y = std.math.sign(y);
+                if (@reduce(.And, off > Pos{ -2, -2 }) and @reduce(.And, off < Pos{ 2, 2 })) break;
 
-                tail[0] += x;
-                tail[1] += y;
+                tail.* += std.math.sign(off);
                 h = tail.*;
 
                 if (i == positions.len - 1) {
