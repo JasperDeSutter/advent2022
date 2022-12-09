@@ -1,9 +1,7 @@
 const std = @import("std");
 const runner = @import("runner.zig");
 
-pub fn main() anyerror!void {
-    try runner.run(solve);
-}
+pub const main = runner.run(solve);
 
 fn solve(alloc: std.mem.Allocator, input: []const u8) anyerror!void {
     std.debug.print("positions visited (2): {any}\n", .{try simulateRope(alloc, input, 2)});
