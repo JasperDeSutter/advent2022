@@ -8,16 +8,20 @@ fn solve(alloc: std.mem.Allocator, input: []const u8) anyerror!void {
     std.debug.print("positions visited (10): {any}\n", .{try simulateRope(alloc, input, 10)});
 }
 
-fn simulateRope(alloc: std.mem.Allocator, input: []const u8, knots: u8) !u32 {
+const boardSize: usize = 500;
+
+fn simulateRope(alloc: std.mem.Allocator, input: []const u8, knots: u8) !usize {
     var lines = std.mem.split(u8, input, "\n");
 
-    var visited = std.AutoHashMap([2]i16, void).init(alloc);
-    defer visited.deinit();
+    var visited = try std.DynamicBitSetUnmanaged.initEmpty(alloc, boardSize * boardSize);
+    defer visited.deinit(alloc);
 
     var positions = try alloc.alloc([2]i16, knots);
     defer alloc.free(positions);
+    std.mem.set([2]i16, positions, .{ 0, 0 });
 
-    try visited.put(.{ 0, 0 }, {});
+    const mid = boardSize / 2;
+    visited.set(mid * mid);
 
     while (lines.next()) |line| {
         const dir = line[0];
@@ -33,10 +37,11 @@ fn simulateRope(alloc: std.mem.Allocator, input: []const u8, knots: u8) !u32 {
             }
 
             var i: usize = 1;
+            var h = head.*;
             while (i < positions.len) : (i += 1) {
                 var tail = &positions[i];
-                var x = head[0] - tail[0];
-                var y = head[1] - tail[1];
+                var x = h[0] - tail[0];
+                var y = h[1] - tail[1];
 
                 if (x < 2 and x > -2 and y < 2 and y > -2) break;
                 x = std.math.sign(x);
@@ -44,14 +49,17 @@ fn simulateRope(alloc: std.mem.Allocator, input: []const u8, knots: u8) !u32 {
 
                 tail[0] += x;
                 tail[1] += y;
-                head = tail;
+                h = tail.*;
 
                 if (i == positions.len - 1) {
-                    try visited.put(tail.*, {});
+                    const midI = @intCast(i16, mid);
+                    const pos = @intCast(usize, h[1] + midI) * boardSize + @intCast(usize, h[0] + midI);
+                    visited.set(pos);
                 }
             }
         }
     }
+
     return visited.count();
 }
 
