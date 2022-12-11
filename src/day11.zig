@@ -20,9 +20,10 @@ fn solve(alloc: std.mem.Allocator, input: []const u8) anyerror!void {
 
 const Monkey = struct {
     items: std.ArrayList(u32),
-    operatorMul: bool = false,
-    operand: u16 = 0,
-    testBy: u16 = 0,
+    add: u8 = 0,
+    mul: u8 = 0,
+    mulSelf: u8 = 0,
+    testBy: u8 = 0,
     throwTo: [2]u8 = .{ 0, 0 },
     inspections: usize = 0,
 };
@@ -43,32 +44,27 @@ const Game = struct {
         };
     }
 
-    fn round(self: *@This(), worry: bool) void {
+    fn round(self: *@This(), comptime worry: bool) void {
         var i: usize = 0;
         while (i < self.monkeys.items.len) : (i += 1) {
             var monkey = &self.monkeys.items[i];
             monkey.inspections += monkey.items.items.len;
-            std.mem.reverse(u32, monkey.items.items);
-            while (monkey.items.popOrNull()) |item| {
+            const items = monkey.items.items;
+            for (items) |item| {
                 var value: u64 = item;
-                var with = value;
-                if (monkey.operand != 0) with = monkey.operand;
-                if (monkey.operatorMul) {
-                    value *= with;
-                } else {
-                    value += with;
-                }
+                value = (value * (monkey.mul + value * monkey.mulSelf)) + monkey.add;
                 if (!worry) {
                     value /= 3;
                 }
-                const index = @boolToInt(value % monkey.testBy == 0);
-                const to = monkey.throwTo[index];
-                self.monkeys.items[to].items.appendAssumeCapacity(@intCast(u32, value % self.supermod));
+                const setValue = @intCast(u32, value % self.supermod);
+                const to = monkey.throwTo[@boolToInt(value % monkey.testBy == 0)];
+                self.monkeys.items[to].items.appendAssumeCapacity(setValue);
             }
+            monkey.items.items.len = 0;
         }
     }
 
-    fn monkeyBusinessLevel(self: *@This(), worry: bool) !usize {
+    fn monkeyBusinessLevel(self: *@This(), comptime worry: bool) !usize {
         var i: usize = 0;
         var rounds: usize = 20;
         if (worry) rounds = 10_000;
@@ -124,13 +120,23 @@ fn parseGame(alloc: std.mem.Allocator, input: []const u8) !Game {
             }
             if (part[0] == 'O') {
                 part = part["Operation: new = old ".len..];
-                monkey.operatorMul = part[0] == '*';
-                monkey.operand = std.fmt.parseInt(u16, part[2..], 10) catch 0;
+                const operand = std.fmt.parseInt(u8, part[2..], 10) catch {
+                    monkey.mulSelf = 1;
+                    continue;
+                };
+
+                if (part[0] == '*') {
+                    monkey.mul = operand;
+                } else {
+                    monkey.add = operand;
+                    monkey.mul = 1;
+                }
+
                 continue;
             }
             if (part[0] == 'T') {
                 part = part["Test: divisible by ".len..];
-                monkey.testBy = try std.fmt.parseInt(u16, part, 10);
+                monkey.testBy = try std.fmt.parseInt(u8, part, 10);
                 continue;
             }
             @panic("unexpected input");
