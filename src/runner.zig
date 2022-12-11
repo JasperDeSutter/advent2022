@@ -27,7 +27,7 @@ pub fn run(
             const start = std.time.nanoTimestamp();
             try solve(alloc, input);
             const end = std.time.nanoTimestamp();
-            std.debug.print("duration: {d}us\n", .{@divTrunc(end - start, 1000)});
+            std.debug.print("duration: {d}μs\n", .{@divTrunc(end - start, 1000)});
         }
     }.main;
 }
