@@ -4,14 +4,22 @@ const runner = @import("runner.zig");
 pub const main = runner.run(solve);
 
 fn solve(alloc: std.mem.Allocator, input: []const u8) anyerror!void {
-    var game = try parseGame(alloc, input);
-    defer game.deinit();
-    const score = try game.monkeyBusinessLevel();
-    std.debug.print("monkey business: {any}\n", .{score});
+    {
+        var game = try parseGame(alloc, input);
+        defer game.deinit();
+        const score = try game.monkeyBusinessLevel(false);
+        std.debug.print("monkey business: {any}\n", .{score});
+    }
+    {
+        var game = try parseGame(alloc, input);
+        defer game.deinit();
+        const score2 = try game.monkeyBusinessLevel(true);
+        std.debug.print("long monkey business: {any}\n", .{score2});
+    }
 }
 
 const Monkey = struct {
-    items: std.ArrayList(u16),
+    items: std.ArrayList(u32),
     operatorMul: bool = false,
     operand: u16 = 0,
     testBy: u16 = 0,
@@ -21,15 +29,28 @@ const Monkey = struct {
 
 const Game = struct {
     monkeys: std.ArrayList(Monkey),
+    supermod: u32,
 
-    fn round(self: *@This()) !void {
+    fn init(monkeys: std.ArrayList(Monkey)) @This() {
+        var supermod: u32 = 1;
+        for (monkeys.items) |monkey| {
+            supermod *= monkey.testBy;
+        }
+
+        return .{
+            .monkeys = monkeys,
+            .supermod = supermod,
+        };
+    }
+
+    fn round(self: *@This(), worry: bool) void {
         var i: usize = 0;
         while (i < self.monkeys.items.len) : (i += 1) {
             var monkey = &self.monkeys.items[i];
             monkey.inspections += monkey.items.items.len;
-            std.mem.reverse(u16, monkey.items.items);
+            std.mem.reverse(u32, monkey.items.items);
             while (monkey.items.popOrNull()) |item| {
-                var value: u32 = item;
+                var value: u64 = item;
                 var with = value;
                 if (monkey.operand != 0) with = monkey.operand;
                 if (monkey.operatorMul) {
@@ -37,19 +58,22 @@ const Game = struct {
                 } else {
                     value += with;
                 }
-                value /= 3;
-
+                if (!worry) {
+                    value /= 3;
+                }
                 const index = @boolToInt(value % monkey.testBy == 0);
                 const to = monkey.throwTo[index];
-                try self.monkeys.items[to].items.append(@intCast(u16, value));
+                self.monkeys.items[to].items.appendAssumeCapacity(@intCast(u32, value % self.supermod));
             }
         }
     }
 
-    fn monkeyBusinessLevel(self: *@This()) !usize {
-        var i: u8 = 0;
-        while (i < 20) : (i += 1) {
-            try self.round();
+    fn monkeyBusinessLevel(self: *@This(), worry: bool) !usize {
+        var i: usize = 0;
+        var rounds: usize = 20;
+        if (worry) rounds = 10_000;
+        while (i < rounds) : (i += 1) {
+            self.round(worry);
         }
 
         var inspections = std.ArrayList(usize).init(self.monkeys.allocator);
@@ -57,6 +81,7 @@ const Game = struct {
         i = 0;
         while (i < self.monkeys.items.len) : (i += 1) {
             try inspections.append(self.monkeys.items[i].inspections);
+            self.monkeys.items[i].inspections = 0;
         }
         std.sort.sort(usize, inspections.items, {}, std.sort.desc(usize));
         return inspections.items[0] * inspections.items[1];
@@ -71,6 +96,7 @@ const Game = struct {
 fn parseGame(alloc: std.mem.Allocator, input: []const u8) !Game {
     var lines = std.mem.split(u8, input, "\n");
     var monkeys = std.ArrayList(Monkey).init(alloc);
+    var totalItems: u8 = 0;
     while (lines.next()) |line| {
         if (line.len == 0) continue;
         if (line[0] == ' ') {
@@ -92,6 +118,7 @@ fn parseGame(alloc: std.mem.Allocator, input: []const u8) !Game {
                 while (items.next()) |item| {
                     const n = try std.fmt.parseInt(u16, item, 10);
                     try monkey.items.append(n);
+                    totalItems += 1;
                 }
                 continue;
             }
@@ -108,11 +135,16 @@ fn parseGame(alloc: std.mem.Allocator, input: []const u8) !Game {
             }
             @panic("unexpected input");
         }
-        const new: Monkey = .{ .items = std.ArrayList(u16).init(alloc) };
+        const new: Monkey = .{ .items = std.ArrayList(u32).init(alloc) };
         try monkeys.append(new);
     }
 
-    return Game{ .monkeys = monkeys };
+    var i: u8 = 0;
+    while (i < monkeys.items.len) : (i += 1) {
+        try monkeys.items[i].items.ensureTotalCapacity(totalItems);
+    }
+
+    return Game.init(monkeys);
 }
 
 test {
@@ -146,8 +178,16 @@ test {
         \\    If false: throw to monkey 1
     ;
 
-    var game = try parseGame(std.testing.allocator, input);
-    defer game.deinit();
-    const score = try game.monkeyBusinessLevel();
-    try std.testing.expectEqual(score, 10605);
+    {
+        var game = try parseGame(std.testing.allocator, input);
+        defer game.deinit();
+        const score = try game.monkeyBusinessLevel(false);
+        try std.testing.expectEqual(score, 10605);
+    }
+    {
+        var game = try parseGame(std.testing.allocator, input);
+        defer game.deinit();
+        const score2 = try game.monkeyBusinessLevel(true);
+        try std.testing.expectEqual(score2, 2713310158);
+    }
 }
