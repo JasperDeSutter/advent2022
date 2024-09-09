@@ -4,11 +4,12 @@ const runner = @import("runner.zig");
 pub const main = runner.run("13", solve);
 
 fn solve(alloc: std.mem.Allocator, input: []const u8) anyerror![2]usize {
-    _ = alloc;
-
     var lines = std.mem.split(u8, input, "\n");
 
     var correctlyOrderedPairs: usize = 0;
+
+    var allLines = try std.ArrayList([]const u8).initCapacity(alloc, 400);
+    defer allLines.deinit();
 
     for (1..std.math.maxInt(usize)) |i| {
         const up = lines.next() orelse unreachable;
@@ -18,12 +19,38 @@ fn solve(alloc: std.mem.Allocator, input: []const u8) anyerror![2]usize {
             correctlyOrderedPairs += i;
         }
 
+        var ptr = allLines.addManyAsArrayAssumeCapacity(2);
+        ptr[0] = up;
+        ptr[1] = down;
+
         if (lines.next() == null) {
             break;
         }
     }
 
-    return .{ correctlyOrderedPairs, 0 };
+    std.mem.sortUnstable([]const u8, allLines.items, {}, struct {
+        pub fn lessThan(_: void, a: []const u8, b: []const u8) bool {
+            return cmp(a, b);
+        }
+    }.lessThan);
+
+    var i: usize = 0;
+    while (true) {
+        if (!cmp(allLines.items[i], "[[2]]")) {
+            break;
+        }
+        i += 1;
+    }
+    var decoderKey = i;
+    while (true) {
+        if (!cmp(allLines.items[i], "[[6]]")) {
+            break;
+        }
+        i += 1;
+    }
+    decoderKey = (decoderKey + 1) * (i + 2);
+
+    return .{ correctlyOrderedPairs, decoderKey };
 }
 
 fn cmp(a: []const u8, b: []const u8) bool {
@@ -97,7 +124,7 @@ fn skipStack(stack: []const u8, num: []const u8) bool {
         if (c != ']') return false;
     }
 
-    return cmp(a[off + size..], b[size..]);
+    return cmp(a[off + size ..], b[size..]);
 }
 
 test {
@@ -128,4 +155,5 @@ test {
     ;
     const results = try solve(std.testing.allocator, input);
     try std.testing.expectEqual(13, results[0]);
+    try std.testing.expectEqual(140, results[1]);
 }
