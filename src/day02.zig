@@ -1,14 +1,13 @@
 const std = @import("std");
 const runner = @import("runner.zig");
 
-pub const main = runner.run(solve);
+pub const main = runner.run("02", solve);
 
-fn solve(_: std.mem.Allocator, input: []const u8) anyerror!void {
-    const score1 = calculateScore(input, chooseMove1);
-    std.debug.print("score 1: {any}\n", .{score1});
-
-    const score2 = calculateScore(input, chooseMove2);
-    std.debug.print("score 2: {any}\n", .{score2});
+fn solve(_: std.mem.Allocator, input: []const u8) anyerror![2]usize {
+    return .{
+        calculateScore(input, chooseMove1),
+        calculateScore(input, chooseMove2),
+    };
 }
 
 fn chooseMove1(other: u8, hint: u8) u8 {

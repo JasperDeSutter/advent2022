@@ -1,11 +1,13 @@
 const std = @import("std");
 const runner = @import("runner.zig");
 
-pub const main = runner.run(solve);
+pub const main = runner.run("09", solve);
 
-fn solve(alloc: std.mem.Allocator, input: []const u8) anyerror!void {
-    std.debug.print("positions visited (2): {any}\n", .{try simulateRope(alloc, input, 2)});
-    std.debug.print("positions visited (10): {any}\n", .{try simulateRope(alloc, input, 10)});
+fn solve(alloc: std.mem.Allocator, input: []const u8) anyerror![2]usize {
+    return .{
+        try simulateRope(alloc, input, 2),
+        try simulateRope(alloc, input, 10),
+    };
 }
 
 const boardSize: usize = 500;
@@ -19,7 +21,7 @@ fn simulateRope(alloc: std.mem.Allocator, input: []const u8, knots: u8) !usize {
 
     var positions = try alloc.alloc(Pos, knots);
     defer alloc.free(positions);
-    std.mem.set(Pos, positions, .{ 0, 0 });
+    @memset(positions, .{ 0, 0 });
 
     const mid = boardSize / 2;
     visited.set(mid * mid);
@@ -29,7 +31,7 @@ fn simulateRope(alloc: std.mem.Allocator, input: []const u8, knots: u8) !usize {
         var dist = try std.fmt.parseInt(u16, line[2..], 10);
 
         while (dist > 0) : (dist -= 1) {
-            var head = &positions[0];
+            const head = &positions[0];
             head.* += switch (dir) {
                 'R' => .{ 1, 0 },
                 'L' => .{ -1, 0 },
@@ -40,8 +42,8 @@ fn simulateRope(alloc: std.mem.Allocator, input: []const u8, knots: u8) !usize {
             var i: usize = 1;
             var h = head.*;
             while (i < positions.len) : (i += 1) {
-                var tail = &positions[i];
-                var off = h - tail.*;
+                const tail = &positions[i];
+                const off = h - tail.*;
 
                 if (@reduce(.And, off > Pos{ -2, -2 }) and @reduce(.And, off < Pos{ 2, 2 })) break;
 
@@ -49,8 +51,8 @@ fn simulateRope(alloc: std.mem.Allocator, input: []const u8, knots: u8) !usize {
                 h = tail.*;
 
                 if (i == positions.len - 1) {
-                    const midI = @intCast(i16, mid);
-                    const pos = @intCast(usize, h[1] + midI) * boardSize + @intCast(usize, h[0] + midI);
+                    const midI: i16 = @intCast(mid);
+                    const pos = @as(usize, @intCast(h[1] + midI)) * boardSize + @as(usize, @intCast(h[0] + midI));
                     visited.set(pos);
                 }
             }

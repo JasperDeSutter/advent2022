@@ -1,21 +1,22 @@
 const std = @import("std");
 const runner = @import("runner.zig");
 
-pub const main = runner.run(solve);
+pub const main = runner.run("11", solve);
 
-fn solve(alloc: std.mem.Allocator, input: []const u8) anyerror!void {
-    {
+fn solve(alloc: std.mem.Allocator, input: []const u8) anyerror![2]usize {
+    const score1 = b1: {
         var game = try parseGame(alloc, input);
         defer game.deinit();
-        const score = try game.monkeyBusinessLevel(false);
-        std.debug.print("monkey business: {any}\n", .{score});
-    }
-    {
-        var game = try parseGame(alloc, input);
-        defer game.deinit();
-        const score2 = try game.monkeyBusinessLevel(true);
-        std.debug.print("long monkey business: {any}\n", .{score2});
-    }
+        break :b1 try game.monkeyBusinessLevel(false);
+    };
+    var game = try parseGame(alloc, input);
+    defer game.deinit();
+    const score2 = try game.monkeyBusinessLevel(true);
+
+    return .{
+        score1,
+        score2,
+    };
 }
 
 const Monkey = struct {
@@ -56,8 +57,8 @@ const Game = struct {
                 if (!worry) {
                     value /= 3;
                 }
-                const setValue = @intCast(u32, value % self.supermod);
-                const to = monkey.throwTo[@boolToInt(value % monkey.testBy == 0)];
+                const setValue: u32 = @intCast(value % self.supermod);
+                const to = monkey.throwTo[@intFromBool(value % monkey.testBy == 0)];
                 self.monkeys.items[to].items.appendAssumeCapacity(setValue);
             }
             monkey.items.items.len = 0;
@@ -79,7 +80,7 @@ const Game = struct {
             try inspections.append(self.monkeys.items[i].inspections);
             self.monkeys.items[i].inspections = 0;
         }
-        std.sort.sort(usize, inspections.items, {}, std.sort.desc(usize));
+        std.mem.sortUnstable(usize, inspections.items, {}, std.sort.desc(usize));
         return inspections.items[0] * inspections.items[1];
     }
 

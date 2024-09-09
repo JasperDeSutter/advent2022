@@ -1,11 +1,13 @@
 const std = @import("std");
 const runner = @import("runner.zig");
 
-pub const main = runner.run(solve);
+pub const main = runner.run("03", solve);
 
-fn solve(_: std.mem.Allocator, input: []const u8) anyerror!void {
-    std.debug.print("sum of wrong item priorities: {any}\n", .{sumOfWrongItemPriorities(input)});
-    std.debug.print("sum of wrong badge priorities: {any}\n", .{sumOfBadgePriorities(input)});
+fn solve(_: std.mem.Allocator, input: []const u8) anyerror![2]usize {
+    return .{
+        sumOfWrongItemPriorities(input),
+        sumOfBadgePriorities(input),
+    };
 }
 
 fn priority(char: u8) u32 {
@@ -46,8 +48,8 @@ const CharMap = struct {
     }
 
     fn combine(self: *@This(), other: *const @This()) void {
-        for (other.values) |v, i| {
-            self.values[i] += v;
+        for (other.values, &self.values) |v, *s| {
+            s.* += v;
         }
     }
 };

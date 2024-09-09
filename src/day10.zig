@@ -1,15 +1,20 @@
 const std = @import("std");
 const runner = @import("runner.zig");
 
-pub const main = runner.run(solve);
+pub const main = runner.run("10", solve);
 
-fn solve(alloc: std.mem.Allocator, input: []const u8) anyerror!void {
+fn solve(alloc: std.mem.Allocator, input: []const u8) anyerror![2]usize {
     _ = alloc;
     const result = try interestingSignalStrengths(input);
-    std.debug.print("interestingSignalStrengths: {any}\n", .{result.interestingSignalStrengths});
+
     var imageOutput: [41 * 6]u8 = undefined;
     result.render(&imageOutput);
     std.debug.print("imageOutput:\n{s}", .{imageOutput});
+
+    return .{
+        result.interestingSignalStrengths,
+        0,
+    };
 }
 
 const Result = struct {
@@ -35,8 +40,8 @@ const Result = struct {
 };
 
 fn render(display: *std.StaticBitSet(240), cycle: u32, spriteIndex: i32) void {
-    const rowIndex = @intCast(i32, cycle % 40);
-    if (std.math.absCast(rowIndex - spriteIndex) < 2) {
+    const rowIndex: i32 = @intCast(cycle % 40);
+    if (@abs(rowIndex - spriteIndex) < 2) {
         display.set(cycle);
     }
 }
@@ -69,7 +74,7 @@ fn interestingSignalStrengths(input: []const u8) !Result {
         if (check < interval) {
             var value = registerX;
             if (interval == 0) value += increment;
-            result += (cycle - check) * @intCast(u32, value);
+            result += (cycle - check) * @as(u32, @intCast(value));
         }
         registerX += increment;
 

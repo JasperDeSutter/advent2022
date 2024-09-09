@@ -1,14 +1,13 @@
 const std = @import("std");
 const runner = @import("runner.zig");
 
-pub const main = runner.run(solve);
+pub const main = runner.run("01", solve);
 
-fn solve(_: std.mem.Allocator, input: []const u8) anyerror!void {
-    const mostTotal = try mostTotalCalories(input);
-    std.debug.print("most total: {}\n", .{mostTotal});
-
-    const topThree = try topThreeCaloriesTotal(input);
-    std.debug.print("top three total: {}\n", .{topThree});
+fn solve(_: std.mem.Allocator, input: []const u8) anyerror![2]usize {
+    return .{
+        try mostTotalCalories(input),
+        try topThreeCaloriesTotal(input),
+    };
 }
 
 fn mostTotalCalories(input: []const u8) !u32 {
@@ -48,7 +47,7 @@ fn mostTotalCaloriesTop(buf: []u32, input: []const u8) !void {
             continue;
         }
 
-        for (buf) |n, i| {
+        for (buf, 0..) |n, i| {
             if (n > current) continue;
             push_front_slice(buf[i..], current);
             break;

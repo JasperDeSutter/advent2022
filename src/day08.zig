@@ -1,12 +1,15 @@
 const std = @import("std");
 const runner = @import("runner.zig");
 
-pub const main = runner.run(solve);
+pub const main = runner.run("08", solve);
 
-fn solve(alloc: std.mem.Allocator, input: []const u8) anyerror!void {
+fn solve(alloc: std.mem.Allocator, input: []const u8) anyerror![2]usize {
     const result = try treeCheck(alloc, input);
-    std.debug.print("visibleTreeCount: {any}\n", .{result.visibleTreeCount});
-    std.debug.print("highestScenicScore: {any}\n", .{result.highestScenicScore});
+
+    return .{
+        result.visibleTreeCount,
+        result.highestScenicScore,
+    };
 }
 
 const Result = struct {
@@ -29,9 +32,9 @@ const State = struct {
         const count = heightArg * widthArg;
         const markers = try std.DynamicBitSetUnmanaged.initEmpty(allocator, count); // try allocator.alloc(bool, count);
         const scores = try allocator.alloc(u32, count);
-        std.mem.set(u32, scores, 1);
-        const historySize = std.math.max(widthArg, heightArg);
-        var history = try allocator.alloc(u8, historySize);
+        @memset(scores, 1);
+        const historySize = @max(widthArg, heightArg);
+        const history = try allocator.alloc(u8, historySize);
 
         return .{
             .markers = markers,
@@ -58,13 +61,13 @@ const State = struct {
         }
 
         var range: u32 = 0;
-        for (self.history[self.historyIndex..]) |h, i| {
+        for (self.history[self.historyIndex..], 0..) |h, i| {
             if (h >= tree) {
-                range = @intCast(u32, i + 1);
+                range = @intCast(i + 1);
                 break;
             }
         }
-        if (range == 0) range = @intCast(u32, self.history.len - self.historyIndex);
+        if (range == 0) range = @intCast(self.history.len - self.historyIndex);
 
         self.scenicScores[pos] *= range;
         self.historyIndex -%= 1;
@@ -77,7 +80,7 @@ const State = struct {
     }
 
     fn result(self: *const @This()) Result {
-        var totalVisible = self.markers.count();
+        const totalVisible = self.markers.count();
 
         var highestScore: u32 = 0;
         for (self.scenicScores) |score| {

@@ -1,13 +1,15 @@
 const std = @import("std");
 const runner = @import("runner.zig");
 
-pub const main = runner.run(solve);
+pub const main = runner.run("06", solve);
 
-fn solve(alloc: std.mem.Allocator, input: []const u8) anyerror!void {
+fn solve(alloc: std.mem.Allocator, input: []const u8) anyerror![2]usize {
     _ = alloc;
 
-    std.debug.print("firstStartOfPacketMarker: {any}\n", .{firstStartOfPacketMarker(input)});
-    std.debug.print("firstStartOfMessageMarker: {any}\n", .{firstStartOfMessageMarker(input)});
+    return .{
+        firstStartOfPacketMarker(input),
+        firstStartOfMessageMarker(input),
+    };
 }
 
 fn firstStartOfPacketMarker(datastream: []const u8) usize {
@@ -20,8 +22,8 @@ fn firstStartOfMessageMarker(datastream: []const u8) usize {
 
 fn impl(datastream: []const u8, size: u8) usize {
     var slice: []const u8 = datastream[0..1];
-    for (datastream[1..]) |c, end| {
-        for (slice) |c2, i| {
+    for (datastream[1..], 0..) |c, end| {
+        for (slice, 0..) |c2, i| {
             if (c2 == c) {
                 slice = slice[(i + 1)..];
                 break;

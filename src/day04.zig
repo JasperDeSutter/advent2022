@@ -1,12 +1,14 @@
 const std = @import("std");
 const runner = @import("runner.zig");
 
-pub const main = runner.run(solve);
+pub const main = runner.run("04", solve);
 
-fn solve(_: std.mem.Allocator, input: []const u8) anyerror!void {
+fn solve(_: std.mem.Allocator, input: []const u8) anyerror![2]usize {
     const result = try fullyOverlappingAssignmentCount(input);
-    std.debug.print("fully overlapping assignment count: {any}\n", .{result.fullyOverlapping});
-    std.debug.print("partially overlapping assignment count: {any}\n", .{result.partiallyOverlapping});
+    return .{
+        result.fullyOverlapping,
+        result.partiallyOverlapping,
+    };
 }
 
 const Error = error{ParsingError};
@@ -16,7 +18,7 @@ const Result = struct {
     partiallyOverlapping: u32,
 };
 
-fn parseNextPart(it: *std.mem.TokenIterator(u8)) Error!u32 {
+fn parseNextPart(it: *std.mem.TokenIterator(u8, .any)) Error!u32 {
     const slice = it.next() orelse return Error.ParsingError;
     return std.fmt.parseInt(u32, slice, 10) catch return Error.ParsingError;
 }
@@ -27,7 +29,7 @@ fn fullyOverlappingAssignmentCount(input: []const u8) Error!Result {
 
     while (lines.next()) |line| {
         var parts = std.mem.tokenize(u8, line, "-,");
-        
+
         const from1 = try parseNextPart(&parts);
         const to1 = try parseNextPart(&parts);
         const from2 = try parseNextPart(&parts);

@@ -1,17 +1,19 @@
 const std = @import("std");
 const runner = @import("runner.zig");
 
-pub const main = runner.run(solve);
+pub const main = runner.run("07", solve);
 
-fn solve(alloc: std.mem.Allocator, input: []const u8) anyerror!void {
+fn solve(alloc: std.mem.Allocator, input: []const u8) anyerror![2]usize {
     const dirTree = try parseSortedDirSizes(alloc, input);
     defer dirTree.deinit();
 
-    std.debug.print("sumOfSmallDirectories: {any}\n", .{sumOfSmallDirectories(dirTree.items)});
-    std.debug.print("smallestDirectoryToDelete: {any}\n", .{smallestDirectoryToDelete(dirTree.items)});
+    return .{
+        try sumOfSmallDirectories(dirTree.items),
+        smallestDirectoryToDelete(dirTree.items),
+    };
 }
 
-fn parseDirSize(lines: *std.mem.SplitIterator(u8), sizes: *std.ArrayList(u32)) !u32 {
+fn parseDirSize(lines: *std.mem.SplitIterator(u8, .sequence), sizes: *std.ArrayList(u32)) !u32 {
     var totalSize: u32 = 0;
 
     while (lines.next()) |line| {
@@ -45,7 +47,7 @@ fn parseSortedDirSizes(alloc: std.mem.Allocator, input: []const u8) !std.ArrayLi
     var sizes = std.ArrayList(u32).init(alloc);
 
     _ = try parseDirSize(&lines, &sizes);
-    std.sort.sort(u32, sizes.items, {}, std.sort.desc(u32));
+    std.mem.sortUnstable(u32, sizes.items, {}, std.sort.desc(u32));
     return sizes;
 }
 

@@ -1,16 +1,21 @@
 const std = @import("std");
 const runner = @import("runner.zig");
 
-pub const main = runner.run(solve);
+pub const main = runner.run("05", solve);
 
-fn solve(alloc: std.mem.Allocator, input: []const u8) anyerror!void {
+fn solve(alloc: std.mem.Allocator, input: []const u8) anyerror![2]usize {
     var stackResult = try stackCrates(alloc, input, false);
     defer stackResult.deinit();
     std.debug.print("stackResult: {s}\n", .{stackResult.items});
 
     var orderedStackResult = try stackCrates(alloc, input, true);
     defer orderedStackResult.deinit();
-    std.debug.print("orderedStackResult: {s}\n", .{orderedStackResult.items});
+    std.debug.print("stackResult: {s}\n", .{orderedStackResult.items});
+
+    return .{
+        0, //stackResult.items,
+        0, //orderedStackResult.items,
+    };
 }
 
 const Stack = std.ArrayList(u8);
@@ -54,7 +59,7 @@ fn stackCrates(alloc: std.mem.Allocator, input: []const u8, inOrder: bool) anyer
     while (lines.next()) |l| {
         var parts = std.mem.split(u8, l, " ");
         _ = parts.next();
-        var count = try std.fmt.parseInt(u32, parts.next().?, 10);
+        const count = try std.fmt.parseInt(u32, parts.next().?, 10);
         _ = parts.next();
         const from = try std.fmt.parseInt(u32, parts.next().?, 10);
         _ = parts.next();
