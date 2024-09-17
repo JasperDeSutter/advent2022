@@ -96,7 +96,7 @@ fn solve(alloc: std.mem.Allocator, input: []const u8) anyerror![2]usize {
 
     try fillDistanceMap(alloc, distanceMap, interestingValves, valves.items);
     for (0..interestingValves.len) |i| {
-        const row = distanceMap[i * interestingValves.len .. (i + 1) * interestingValves.len];
+        const row = distanceMap[i * interestingValves.len ..][0..interestingValves.len];
 
         for (0..i) |j| {
             row[j] = distanceMap[j * interestingValves.len + i];
@@ -139,7 +139,7 @@ fn solve(alloc: std.mem.Allocator, input: []const u8) anyerror![2]usize {
     for (states, 0..) |state, i| {
         if (state == 0) continue;
 
-        for (states[i..], i..) |state2, j| { // n^2 loop takes 75% of time
+        for (states[0..i], 0..) |state2, j| {
             if (state2 == 0) continue;
 
             const total = state + state2;
