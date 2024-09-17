@@ -7,7 +7,14 @@ const Valve = struct {
     tunnels: [5]u8,
     tunnelCount: u8,
     flowRate: u8,
-    // open: bool,
+};
+
+const StackItem = struct {
+    flowRate: u16,
+    open: u16,
+    idx: u8,
+    minutesLeft: u8,
+    pressure: u8,
 };
 
 const OpenMap = std.ArrayListUnmanaged(bool);
@@ -96,14 +103,6 @@ fn solve(alloc: std.mem.Allocator, input: []const u8) anyerror![2]usize {
         }
     }
 
-    const StackItem = struct {
-        idx: u8,
-        minutesLeft: u8,
-        open: [16]bool,
-        pressure: usize,
-        flowRate: usize,
-    };
-
     var stack = std.ArrayListUnmanaged(StackItem){};
     defer stack.deinit(alloc);
 
@@ -115,52 +114,82 @@ fn solve(alloc: std.mem.Allocator, input: []const u8) anyerror![2]usize {
         }
     }
 
-    try stack.append(alloc, .{
-        .idx = startIdx,
-        .minutesLeft = 30,
-        .open = .{false} ** 16,
-        .pressure = 0,
-        .flowRate = 0,
-    });
+    const states = try alloc.alloc(u16, @as(u32, 1) << @intCast(interestingValves.len));
+    defer alloc.free(states);
 
     for (interestingValves) |*iv| {
         iv.* = valves.items[iv.*].flowRate;
     }
 
+    @memset(states, 0);
+    try findOptimalDistance(alloc, &stack, states, interestingValves, distanceMap, startIdx, 30);
     var mostPressure: usize = 0;
 
+    for (states) |state| {
+        if (state > mostPressure) {
+            mostPressure = state;
+        }
+    }
+
+    @memset(states, 0);
+    try findOptimalDistance(alloc, &stack, states, interestingValves, distanceMap, startIdx, 26);
+
+    var mostPressureWithElephant: usize = 0;
+    const ignoreStart = (@as(u16, 1) << @intCast(startIdx));
+    for (states, 0..) |state, i| {
+        if (state == 0) continue;
+
+        for (states[i..], i..) |state2, j| {
+            if (state2 == 0) continue;
+
+            if ((i & j) | ignoreStart != ignoreStart) continue;
+            const total = state + state2;
+            if (total > mostPressureWithElephant) {
+                mostPressureWithElephant = total;
+            }
+        }
+    }
+
+    return .{ mostPressure, mostPressureWithElephant };
+}
+
+fn findOptimalDistance(alloc: std.mem.Allocator, stack: *std.ArrayListUnmanaged(StackItem), states: []u16, flowRates: []const u8, distanceMap: []const u8, startIdx: u8, minutesLeft: u8) !void {
+    try stack.append(alloc, .{
+        .idx = startIdx,
+        .minutesLeft = minutesLeft,
+        .open = 0,
+        .pressure = 0,
+        .flowRate = 0,
+    });
+
     while (stack.popOrNull()) |item| {
-        var newOpen = item.open;
-        newOpen[item.idx] = true;
+        var bitset = item.open;
+        bitset |= (@as(u16, 1) << @intCast(item.idx));
+        // std.debug.print("bitset: {x:16}\n", .{bitset});
 
-        for (interestingValves, 0..) |iv, i| {
-            if (item.open[i]) continue;
+        const pressure: u16 = item.pressure + flowRates[item.idx];
+        states[bitset] = @max(states[bitset], item.flowRate + pressure * item.minutesLeft);
 
-            const distance = distanceMap[item.idx * interestingValves.len + i];
+        for (0..flowRates.len) |i| {
+            if ((bitset & (@as(u16, 1) << @intCast(i))) != 0) continue;
+
+            const distance = distanceMap[item.idx * flowRates.len + i];
             if (distance == 0) continue;
 
             const duration = distance + 1; // opening valve takes a minute
             if (item.minutesLeft < duration) continue;
 
-            const newFlowRate = item.flowRate + item.pressure * duration;
-            const newPressure = item.pressure + iv;
+            const newFlowRate = item.flowRate + pressure * duration;
 
             try stack.append(alloc, .{
                 .idx = @intCast(i),
                 .minutesLeft = item.minutesLeft - duration,
-                .open = newOpen,
-                .pressure = newPressure,
+                .open = bitset,
+                .pressure = @intCast(pressure),
                 .flowRate = newFlowRate,
             });
         }
-
-        const total = item.flowRate + item.minutesLeft * item.pressure;
-        if (total > mostPressure) {
-            mostPressure = total;
-        }
     }
-
-    return .{ mostPressure, 0 };
 }
 
 fn fillDistanceMap(alloc: std.mem.Allocator, map: []u8, interestingValves: []const u8, valves: []const Valve) !void {
@@ -246,5 +275,5 @@ test {
     ;
     const results = try solve(std.testing.allocator, input);
     try std.testing.expectEqual(1651, results[0]);
-    // try std.testing.expectEqual(56000011, results[1]);
+    try std.testing.expectEqual(1707, results[1]);
 }
