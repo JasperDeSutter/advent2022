@@ -114,7 +114,8 @@ fn solve(alloc: std.mem.Allocator, input: []const u8) anyerror![2]usize {
         }
     }
 
-    const states = try alloc.alloc(u16, @as(u32, 1) << @intCast(interestingValves.len));
+    // not tracking start index
+    const states = try alloc.alloc(u16, @as(u32, 1) << @intCast(interestingValves.len - 1));
     defer alloc.free(states);
 
     for (interestingValves) |*iv| {
@@ -135,16 +136,14 @@ fn solve(alloc: std.mem.Allocator, input: []const u8) anyerror![2]usize {
     try findOptimalDistance(alloc, &stack, states, interestingValves, distanceMap, startIdx, 26);
 
     var mostPressureWithElephant: usize = 0;
-    const ignoreStart = (@as(u16, 1) << @intCast(startIdx));
     for (states, 0..) |state, i| {
         if (state == 0) continue;
 
-        for (states[i..], i..) |state2, j| {
+        for (states[i..], i..) |state2, j| { // n^2 loop takes 75% of time
             if (state2 == 0) continue;
 
-            if ((i & j) | ignoreStart != ignoreStart) continue;
             const total = state + state2;
-            if (total > mostPressureWithElephant) {
+            if (total > mostPressureWithElephant and (i & j) == 0) {
                 mostPressureWithElephant = total;
             }
         }
@@ -163,15 +162,18 @@ fn findOptimalDistance(alloc: std.mem.Allocator, stack: *std.ArrayListUnmanaged(
     });
 
     while (stack.popOrNull()) |item| {
-        var bitset = item.open;
-        bitset |= (@as(u16, 1) << @intCast(item.idx));
-        // std.debug.print("bitset: {x:16}\n", .{bitset});
+        const totalFlowRate = item.flowRate + @as(u16, item.pressure) * item.minutesLeft;
 
-        const pressure: u16 = item.pressure + flowRates[item.idx];
-        states[bitset] = @max(states[bitset], item.flowRate + pressure * item.minutesLeft);
+        if (totalFlowRate > states[item.open]) {
+            states[item.open] = totalFlowRate;
+        }
 
-        for (0..flowRates.len) |i| {
-            if ((bitset & (@as(u16, 1) << @intCast(i))) != 0) continue;
+        for (flowRates, 0..) |fr, i| {
+            if (i == startIdx) continue;
+
+            const j = if (i > startIdx) i - 1 else i;
+            const bitset = item.open | (@as(u16, 1) << @intCast(j));
+            if (bitset == item.open) continue;
 
             const distance = distanceMap[item.idx * flowRates.len + i];
             if (distance == 0) continue;
@@ -179,13 +181,13 @@ fn findOptimalDistance(alloc: std.mem.Allocator, stack: *std.ArrayListUnmanaged(
             const duration = distance + 1; // opening valve takes a minute
             if (item.minutesLeft < duration) continue;
 
-            const newFlowRate = item.flowRate + pressure * duration;
+            const newFlowRate = item.flowRate + @as(u16, item.pressure) * duration;
 
             try stack.append(alloc, .{
                 .idx = @intCast(i),
                 .minutesLeft = item.minutesLeft - duration,
                 .open = bitset,
-                .pressure = @intCast(pressure),
+                .pressure = item.pressure + fr,
                 .flowRate = newFlowRate,
             });
         }
