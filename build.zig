@@ -11,7 +11,7 @@ pub fn build(b: *std.Build) !void {
     const run_all_step = b.step("all", "Run all");
 
     var day: u32 = 1;
-    const end: u32 = 17;
+    const end: u32 = 18;
     while (day <= end) : (day += 1) {
         if (day == 12) continue;
         var dayStringBuf: [5]u8 = undefined;
